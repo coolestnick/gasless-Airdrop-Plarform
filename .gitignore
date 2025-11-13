@@ -1,0 +1,44 @@
+# Environment variables
+.env
+.env.local
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Dependencies
+node_modules/
+
+# Build outputs
+build/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Database backups
+backups/
+
+# Test coverage
+coverage/
+
+# Temporary files
+tmp/
+temp/
+
+# Private keys (extra safety)
+*.key
+*.pem
+privateKey.txt
