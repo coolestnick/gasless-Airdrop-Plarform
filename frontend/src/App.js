@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Toaster, toast } from 'react-hot-toast';
 import { airdropAPI } from './services/api';
 import web3 from './utils/web3';
+import AdminPortal from './AdminPortal';
 import './App.css';
 
 function App() {
+  const [showAdmin, setShowAdmin] = useState(false);
   const [account, setAccount] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isCorrectNetwork, setIsCorrectNetwork] = useState(true);
@@ -243,7 +245,7 @@ function App() {
       // Submit claim with CAPTCHA token
       const result = await airdropAPI.claim(account, signature, captchaToken);
 
-      toast.success('Airdrop claimed successfully!', {
+      toast.success('Registration successful!', {
         id: 'signing',
         icon: '🎉',
         duration: 6000,
@@ -253,28 +255,24 @@ function App() {
       setEligibility({
         ...eligibility,
         claimed: true,
-        txHash: result.txHash,
+        txHash: null,
       });
 
       // Refresh stats and recent claims
       loadStats();
       loadRecentClaims();
 
-      // Show transaction link
+      // Show registration confirmation
       setTimeout(() => {
         toast.success(
           (t) => (
             <div>
-              <p>Transaction confirmed!</p>
-              <a
-                href={result.explorerUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="tx-link"
-                style={{ fontSize: '0.875rem', marginTop: '0.5rem', display: 'inline-block' }}
-              >
-                View on Explorer →
-              </a>
+              <p>Your wallet has been registered!</p>
+              {result.country && (
+                <p style={{ fontSize: '0.875rem', marginTop: '0.5rem', opacity: 0.8 }}>
+                  Location: {result.country}
+                </p>
+              )}
             </div>
           ),
           {
@@ -380,6 +378,11 @@ function App() {
     toast.success('Address copied!', { duration: 2000 });
   };
 
+  // Show admin portal if toggled
+  if (showAdmin) {
+    return <AdminPortal onBack={() => setShowAdmin(false)} />;
+  }
+
   return (
     <div className="app">
       <Toaster
@@ -418,7 +421,15 @@ function App() {
             </div>
           </div>
 
-          <div className="header-right">
+          <div className="header-right" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            <button
+              className="btn btn-secondary"
+              onClick={() => setShowAdmin(true)}
+              style={{ fontSize: '0.875rem', padding: '0.5rem 1rem' }}
+              title="Admin Portal"
+            >
+              🔐 Admin
+            </button>
             {account ? (
               <div className="connected-badge">
                 <div className="wallet-badge">
@@ -599,13 +610,13 @@ function App() {
                               </>
                             ) : (
                               <>
-                                🎁 Claim Airdrop
+                                ✅ Register Wallet
                               </>
                             )}
                           </button>
 
                           <p style={{ marginTop: '1rem', color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-                            💡 You won't pay any gas fees. We cover it for you!
+                            💡 Register your wallet to participate in the rewards program
                           </p>
                         </>
                       ) : (
@@ -614,10 +625,10 @@ function App() {
                           <div className="status-message status-success">
                             <span style={{ fontSize: '1.5rem' }}>✅</span>
                             <div>
-                              <strong>Airdrop Already Claimed!</strong>
+                              <strong>Wallet Already Registered!</strong>
                               <br />
                               <small>
-                                Claimed on {new Date(eligibility.claimDate).toLocaleDateString()}
+                                Registered on {new Date(eligibility.claimDate).toLocaleDateString()}
                               </small>
                             </div>
                           </div>
@@ -626,20 +637,8 @@ function App() {
                             <div className="reward-amount">
                               {eligibility.amountFormatted} {process.env.REACT_APP_CURRENCY_SYMBOL}
                             </div>
-                            <div className="reward-label">Amount Claimed</div>
+                            <div className="reward-label">Allocated Amount</div>
                           </div>
-
-                          {eligibility.txHash && (
-                            <a
-                              href={`${process.env.REACT_APP_BLOCK_EXPLORER}/tx/${eligibility.txHash}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-secondary"
-                              style={{ marginTop: '1rem' }}
-                            >
-                              View Transaction →
-                            </a>
-                          )}
                         </>
                       )}
                     </>

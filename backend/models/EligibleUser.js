@@ -51,6 +51,14 @@ const eligibleUserSchema = new mongoose.Schema({
   lastAttempt: {
     type: Date,
     default: null
+  },
+  ipAddress: {
+    type: String,
+    default: null
+  },
+  country: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true
@@ -60,10 +68,16 @@ const eligibleUserSchema = new mongoose.Schema({
 eligibleUserSchema.index({ walletAddress: 1, claimed: 1 });
 
 // Methods
-eligibleUserSchema.methods.markAsClaimed = function(txHash) {
+eligibleUserSchema.methods.markAsClaimed = function(txHash, ipAddress = null, country = null) {
   this.claimed = true;
   this.claimDate = new Date();
   this.txHash = txHash;
+  if (ipAddress) {
+    this.ipAddress = ipAddress;
+  }
+  if (country) {
+    this.country = country;
+  }
   return this.save();
 };
 

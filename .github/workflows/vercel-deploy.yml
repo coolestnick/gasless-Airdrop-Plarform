@@ -1,0 +1,56 @@
+# GitHub Actions workflow for Vercel deployment
+# Note: This is optional - Vercel has built-in GitHub integration
+# This workflow can be used for additional CI/CD steps
+
+name: Vercel Deployment
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: |
+            gasless-airdrop/backend/package-lock.json
+            gasless-airdrop/frontend/package-lock.json
+      
+      - name: Install backend dependencies
+        working-directory: ./gasless-airdrop/backend
+        run: npm ci
+      
+      - name: Install frontend dependencies
+        working-directory: ./gasless-airdrop/frontend
+        run: npm ci
+      
+      - name: Build frontend
+        working-directory: ./gasless-airdrop/frontend
+        run: npm run build
+        env:
+          REACT_APP_API_URL: ${{ secrets.REACT_APP_API_URL }}
+          REACT_APP_CHAIN_ID: ${{ secrets.REACT_APP_CHAIN_ID }}
+          REACT_APP_RPC_URL: ${{ secrets.REACT_APP_RPC_URL }}
+          REACT_APP_BLOCK_EXPLORER: ${{ secrets.REACT_APP_BLOCK_EXPLORER }}
+          REACT_APP_CURRENCY_SYMBOL: ${{ secrets.REACT_APP_CURRENCY_SYMBOL }}
+      
+      - name: Run backend tests (if any)
+        working-directory: ./gasless-airdrop/backend
+        run: npm test || true
+      
+      # Vercel will automatically deploy via GitHub integration
+      # This workflow can be extended for additional checks
+

@@ -67,4 +67,62 @@ export const airdropAPI = {
   },
 };
 
+// Admin API methods
+export const adminAPI = {
+  // Get admin dashboard data
+  getDashboard: async (adminKey) => {
+    return api.get('/admin/dashboard', {
+      headers: {
+        'x-admin-key': adminKey
+      }
+    });
+  },
+
+  // Export claims as CSV
+  exportClaims: async (adminKey) => {
+    const response = await axios.get(`${API_BASE_URL}/admin/export`, {
+      headers: {
+        'x-admin-key': adminKey
+      },
+      responseType: 'blob' // Important for file download
+    });
+    
+    // Create download link
+    const url = window.URL.createObjectURL(new Blob([response.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Get filename from Content-Disposition header or use default
+    const contentDisposition = response.headers['content-disposition'];
+    let filename = 'verified-claims.csv';
+    if (contentDisposition) {
+      const filenameMatch = contentDisposition.match(/filename="?(.+)"?/i);
+      if (filenameMatch) {
+        filename = filenameMatch[1];
+      }
+    }
+    
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+    
+    return { success: true, filename };
+  },
+
+  // Get paginated users
+  getUsers: async (adminKey, page = 1, limit = 50, claimed = null) => {
+    const params = new URLSearchParams({ page, limit });
+    if (claimed !== null) {
+      params.append('claimed', claimed);
+    }
+    return api.get(`/admin/users?${params.toString()}`, {
+      headers: {
+        'x-admin-key': adminKey
+      }
+    });
+  },
+};
+
 export default api;

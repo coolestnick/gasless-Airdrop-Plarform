@@ -24,6 +24,9 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir);
 }
 
+// Trust proxy to get real client IP (important for production behind load balancers/proxies)
+app.set('trust proxy', true);
+
 // Middleware
 app.use(helmet()); // Security headers
 app.use(cors({

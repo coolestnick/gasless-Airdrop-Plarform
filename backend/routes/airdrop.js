@@ -8,9 +8,10 @@ const walletService = require('../services/walletService');
 const { validate, schemas } = require('../middleware/validation');
 const { eligibilityLimiter, claimLimiter } = require('../middleware/rateLimiter');
 const logger = require('../utils/logger');
+const { getCountryFromIP, getClientIP } = require('../utils/ipGeolocation');
 
 // @route   POST /api/check-eligibility
-// @desc    Check if wallet is eligible for airdrop
+// @desc    Check if wallet is eligible for airdrop and store IP/country on wallet connection
 // @access  Public
 router.post(
   '/check-eligibility',
@@ -30,6 +31,30 @@ router.post(
           claimed: false,
           message: 'Wallet address is not eligible for this airdrop'
         });
+      }
+
+      // Store IP and country when wallet connects (if not already stored)
+      if (!user.ipAddress || !user.country) {
+        const clientIP = getClientIP(req);
+        
+        // Get country (with timeout to not block response)
+        let country = 'Unknown';
+        try {
+          country = await Promise.race([
+            getCountryFromIP(clientIP),
+            new Promise((resolve) => setTimeout(() => resolve('Unknown'), 2000)) // 2 second timeout
+          ]);
+        } catch (error) {
+          logger.warn(`Error getting country for IP ${clientIP}:`, error.message);
+          country = 'Unknown';
+        }
+
+        // Update user with IP and country
+        user.ipAddress = clientIP;
+        user.country = country;
+        await user.save();
+        
+        logger.info(`Wallet connected: ${walletAddress}, IP: ${clientIP}, Country: ${country}`);
       }
 
       res.json({
@@ -136,56 +161,47 @@ router.post(
         });
       }
 
-      // 5. Check backend wallet balance and estimate gas
-      const backendBalance = await walletService.getBalance();
-      const requiredAmount = BigInt(user.allocatedAmount);
-
-      let gasEstimate;
-      try {
-        gasEstimate = await walletService.estimateGas(walletAddress, requiredAmount);
-      } catch (gasError) {
-        if (gasError.message?.includes('insufficient SHM balance')) {
-          logger.error('Backend wallet has insufficient balance');
-          return res.status(503).json({
-            success: false,
-            message: 'Airdrop service is currently being funded. Please try again in a few minutes.'
-          });
+      // 5. Get IP address and country (if not already stored)
+      const clientIP = getClientIP(req);
+      let country = user.country || 'Unknown';
+      
+      // If IP/country not stored, get it now
+      if (!user.ipAddress || !user.country) {
+        try {
+          country = await Promise.race([
+            getCountryFromIP(clientIP),
+            new Promise((resolve) => setTimeout(() => resolve('Unknown'), 2000)) // 2 second timeout
+          ]);
+        } catch (error) {
+          logger.warn(`Error getting country for IP ${clientIP}:`, error.message);
+          country = 'Unknown';
         }
-        throw gasError;
+      } else {
+        country = user.country;
       }
 
-      const totalRequired = requiredAmount + gasEstimate.gasCost;
+      // 6. Mark as registered/claimed WITHOUT sending tokens
+      // Just store the registration data: IP, country, timestamp, wallet address
+      user.claimed = true;
+      user.claimDate = new Date();
+      user.ipAddress = clientIP;
+      user.country = country;
+      // No txHash since we're not sending tokens
+      user.txHash = null;
+      await user.save();
 
-      if (backendBalance < totalRequired) {
-        logger.error('Insufficient backend wallet balance');
-        return res.status(503).json({
-          success: false,
-          message: 'Airdrop service is currently being funded. Please try again in a few minutes.'
-        });
-      }
-
-      // 6. Send tokens
-      logger.info(`Processing claim for ${walletAddress}: ${ethers.formatEther(requiredAmount)} SHM`);
-
-      const txResult = await walletService.sendNativeToken(
-        walletAddress,
-        requiredAmount
-      );
-
-      // 7. Mark as claimed
-      await user.markAsClaimed(txResult.txHash);
-
-      // 8. Log success
-      logger.info(`Claim successful for ${walletAddress}. TX: ${txResult.txHash}`);
+      // 7. Log success
+      logger.info(`User registered: ${walletAddress}, IP: ${clientIP}, Country: ${country}, Time: ${user.claimDate}`);
 
       res.json({
         success: true,
-        message: 'Airdrop claimed successfully!',
-        txHash: txResult.txHash,
+        message: 'Registration successful! Your wallet has been registered.',
         amount: user.allocatedAmount,
         amountFormatted: ethers.formatEther(user.allocatedAmount),
-        blockNumber: txResult.blockNumber,
-        explorerUrl: `${process.env.BLOCK_EXPLORER}/tx/${txResult.txHash}`
+        registered: true,
+        registeredDate: user.claimDate,
+        ipAddress: clientIP,
+        country: country
       });
     } catch (error) {
       logger.error('Error processing claim:', error);

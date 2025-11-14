@@ -167,7 +167,9 @@ router.get('/users', adminAuth, async (req, res) => {
         claimed: user.claimed,
         claimDate: user.claimDate,
         txHash: user.txHash,
-        attempts: user.attempts
+        attempts: user.attempts,
+        ipAddress: user.ipAddress || null,
+        country: user.country || null
       })),
       pagination: {
         currentPage: page,
@@ -187,29 +189,58 @@ router.get('/users', adminAuth, async (req, res) => {
 });
 
 // @route   GET /api/admin/export
-// @desc    Export claims data as CSV
+// @desc    Export registered users data as CSV (users who connected wallet and have IP/country)
 // @access  Private
 router.get('/export', adminAuth, async (req, res) => {
   try {
-    const users = await EligibleUser.find({ claimed: true })
-      .sort({ claimDate: -1 });
+    // Export all users who have connected their wallet (have IP address stored)
+    const users = await EligibleUser.find({ 
+      ipAddress: { $exists: true, $ne: null, $ne: '' } 
+    })
+      .sort({ claimDate: -1, createdAt: -1 });
 
-    // Generate CSV
+    // Generate CSV with proper escaping for commas and quotes
+    const escapeCSV = (field) => {
+      if (field === null || field === undefined) return '';
+      const str = String(field);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const csvRows = [
-      'Wallet Address,Amount,XP Points,Rank,Claim Date,Transaction Hash'
+      'Wallet Address,Amount,XP Points,Rank,Registration Date,IP Address,Country'
     ];
 
     users.forEach(user => {
+      // Use claimDate if available, otherwise use createdAt (when wallet was connected)
+      const registrationDate = user.claimDate 
+        ? new Date(user.claimDate).toISOString() 
+        : (user.createdAt ? new Date(user.createdAt).toISOString() : '');
+      
       csvRows.push(
-        `${user.walletAddress},${ethers.formatEther(user.allocatedAmount)},${user.xpPoints},${user.rank},${user.claimDate},${user.txHash}`
+        [
+          escapeCSV(user.walletAddress),
+          escapeCSV(ethers.formatEther(user.allocatedAmount)),
+          escapeCSV(user.xpPoints),
+          escapeCSV(user.rank),
+          escapeCSV(registrationDate),
+          escapeCSV(user.ipAddress || ''),
+          escapeCSV(user.country || 'Unknown')
+        ].join(',')
       );
     });
 
     const csv = csvRows.join('\n');
 
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename=claims-export.csv');
-    res.send(csv);
+    // Generate filename with timestamp
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `shardeum-gasless-rewards-claims-${timestamp}.csv`;
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send('\ufeff' + csv); // Add BOM for Excel UTF-8 support
   } catch (error) {
     logger.error('Error exporting claims:', error);
     res.status(500).json({

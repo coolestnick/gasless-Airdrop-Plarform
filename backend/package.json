@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "nodemon server.js",
     "import-csv": "node scripts/importCSV.js",
+    "update-countries": "node scripts/updateCountryData.js",
     "test": "jest --coverage"
   },
   "keywords": [
