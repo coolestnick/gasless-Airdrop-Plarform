@@ -87,10 +87,21 @@ async function initializeServices() {
 
 // Vercel serverless function handler
 module.exports = async (req, res) => {
-  // Initialize services on first request
-  await initializeServices();
-  
-  // Handle the request with Express
-  return app(req, res);
+  try {
+    // Initialize services on first request
+    await initializeServices();
+    
+    // Handle the request with Express
+    app(req, res);
+  } catch (error) {
+    logger.error('Serverless function error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      });
+    }
+  }
 };
 
